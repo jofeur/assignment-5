@@ -72,7 +72,8 @@ elif args.variant == 'rope':
     # TODO: [part g] Make some other model here
     # set mconf.rope parameter
     ### YOUR CODE HERE ###
-    pass
+    mconf.rope = True
+    model = models.GPT(mconf).to(device)
     ### END YOUR CODE ###
 else:
     raise ValueError("Unknown model variant")
@@ -102,7 +103,19 @@ if args.function == 'pretrain':
     # writer=writer
 
     ### YOUR CODE HERE ###
-    pass
+    tconf = trainer.TrainerConfig(
+        max_epochs=650,
+        batch_size=128,
+        learning_rate=args.pretrain_lr,
+        lr_decay=True,
+        warmup_tokens=512 * 20,
+        final_tokens=650 * len(pretrain_dataset) * block_size,
+        num_workers=4,
+        writer=writer,
+        ckpt_path=args.writing_params_path,
+    )
+    pretrain_trainer = trainer.Trainer(model, pretrain_dataset, None, tconf)
+    pretrain_trainer.train()
     ### END YOUR CODE ###
 elif args.function == 'finetune':
     assert args.writing_params_path is not None
@@ -141,28 +154,42 @@ elif args.function == 'finetune':
     #     number of epochs for each case.
 
     ### YOUR CODE HERE ###
-    if args.reading_params_path is None:
-        finetune_text = open(args.finetune_corpus_path, encoding='utf-8').read()
-        finetune_dataset = dataset.NameDataset(pretrain_dataset, finetune_text)
-        tconf = trainer.TrainerConfig(
-            max_epochs=75,
-            batch_size=256,
-            learning_rate=args.finetune_lr,
-            lr_decay=True,
-            warmup_tokens=512 * 20,
-            final_tokens=200 * len(pretrain_dataset) * block_size,
-            num_workers=4,
-            writer=writer,
-            ckpt_path=args.writing_params_path,
+    finetune_text = open(args.finetune_corpus_path, encoding='utf-8').read()
+    finetune_dataset = dataset.NameDataset(pretrain_dataset, finetune_text)
+
+    if args.reading_params_path is not None:
+        map_location = (
+            torch.device('cuda', device) if isinstance(device, int) else device
         )
-        finetune_trainer = trainer.Trainer(model, finetune_dataset, None, tconf)
-        finetune_trainer.train()
+        model.load_state_dict(
+            torch.load(args.reading_params_path, map_location=map_location))
+        max_epochs = 10
+    else:
+        max_epochs = 75
+
+    tconf = trainer.TrainerConfig(
+        max_epochs=max_epochs,
+        batch_size=256,
+        learning_rate=args.finetune_lr,
+        lr_decay=True,
+        warmup_tokens=512 * 20,
+        final_tokens=200 * len(pretrain_dataset) * block_size,
+        num_workers=4,
+        writer=writer,
+        ckpt_path=args.writing_params_path,
+    )
+    finetune_trainer = trainer.Trainer(model, finetune_dataset, None, tconf)
+    finetune_trainer.train()
     ### END YOUR CODE ###
 elif args.function == 'evaluate':
     assert args.outputs_path is not None
     assert args.reading_params_path is not None
     assert args.eval_corpus_path is not None
-    model.load_state_dict(torch.load(args.reading_params_path))
+    map_location = (
+        torch.device('cuda', device) if isinstance(device, int) else device
+    )
+    model.load_state_dict(
+        torch.load(args.reading_params_path, map_location=map_location))
     correct = 0
     total = 0
     with open(args.outputs_path, 'w', encoding='utf-8') as fout:

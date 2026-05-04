@@ -99,10 +99,45 @@ class CharCorruptionDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        # TODO [part e]: see spec above
-        ### YOUR CODE HERE ###
-        pass
-        ### END YOUR CODE ###
+        document = self.data[idx]
+        if len(document) == 0:
+            document = self.PAD_CHAR * 4
+        while len(document) < 4:
+            document = document + (self.data[idx] if self.data[idx] else self.PAD_CHAR)
+
+        max_len = int(self.block_size * 7 / 8)
+        hi = min(len(document), max_len)
+        trunc_len = random.randint(4, hi)
+        if len(document) > trunc_len:
+            start = random.randint(0, len(document) - trunc_len)
+            trunc = document[start : start + trunc_len]
+        else:
+            trunc = document
+
+        T = len(trunc)
+        # Random span length with mean ~T/4: uniform on 1 .. floor((T-1)/2)
+        m = random.randint(1, max(1, (T - 1) // 2))
+        p = random.randint(0, T - m)
+        prefix = trunc[:p]
+        masked_content = trunc[p : p + m]
+        suffix = trunc[p + m :]
+
+        n_pad = self.block_size + 1 - (T + 2)
+        masked_string = (
+            prefix
+            + self.MASK_CHAR
+            + suffix
+            + self.MASK_CHAR
+            + masked_content
+            + self.PAD_CHAR * n_pad
+        )
+        assert len(masked_string) == self.block_size + 1
+
+        x = masked_string[:-1]
+        y = masked_string[1:]
+        x = torch.tensor([self.stoi[c] for c in x], dtype=torch.long)
+        y = torch.tensor([self.stoi[c] for c in y], dtype=torch.long)
+        return x, y
 
 
 # The input-output pairs (x, y) of the NameDataset are of the following form:
