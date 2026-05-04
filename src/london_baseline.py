@@ -4,16 +4,15 @@
 # Hint: Make use of existing code.
 # Your solution here should only be a few lines.
 
-import argparse
 import utils
 
 def main():
-    accuracy = 0.0
-
-    # Compute accuracy in the range [0.0, 100.0]
-    ### YOUR CODE HERE ###
-    pass
-    ### END YOUR CODE ###
+    dev_path = "birth_dev.tsv"
+    with open(dev_path, encoding="utf-8") as fin:
+        n = len(fin.readlines())
+    predictions = ["London"] * n
+    total, correct = utils.evaluate_places(dev_path, predictions)
+    accuracy = (correct / total) * 100.0 if total > 0 else 0.0
 
     return accuracy
 
